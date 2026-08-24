@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a defect in repository tooling, validation, or documentation.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security issues here; use private vulnerability reporting.
+        Do not attach model files, datasets, copyrighted audio, or private data.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Describe the defect clearly and concisely.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include exact commands and inputs that are safe to share.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Affected commit SHA.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: I am not sharing model files, datasets, copyrighted audio, or private data
+          required: true

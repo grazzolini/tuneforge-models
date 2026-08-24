@@ -1,0 +1,68 @@
+name: Model or conversion proposal
+description: Propose a model source, conversion, validation, or publication gate.
+title: "[model] "
+labels: ["model"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Provide links and checksums only. Do not upload model files, datasets,
+        copyrighted audio, or conversion output.
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Proposed outcome
+      description: What should this repository produce or validate?
+    validations:
+      required: true
+
+  - type: input
+    id: upstream
+    attributes:
+      label: Authoritative upstream source
+      description: Repository, release, paper, or package URL.
+    validations:
+      required: true
+
+  - type: textarea
+    id: artifact
+    attributes:
+      label: Version and artifact integrity
+      description: Immutable version or commit, filename, size, and SHA-256.
+    validations:
+      required: true
+
+  - type: textarea
+    id: license
+    attributes:
+      label: License and attribution
+      description: Exact license source, authors, notices, and redistribution terms.
+    validations:
+      required: true
+
+  - type: textarea
+    id: training
+    attributes:
+      label: Training-data provenance
+      description: Datasets, licenses, consent or rights basis, and known gaps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Reproduction and validation plan
+      description: Conversion commands, environment, fixtures, metrics, and acceptance criteria.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I am not attaching model files, datasets, copyrighted audio, or conversion output
+          required: true
+        - label: I have disclosed known provenance and redistribution gaps
+          required: true

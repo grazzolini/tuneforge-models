@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check repository policy
+        run: bash scripts/check-repository.sh
+
+  commit-policy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        with:
+          install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "26"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install commitlint
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Test commitlint configuration
+        run: node --test scripts/commitlint.test.mjs
+
+      - name: Lint commits
+        env:
+          EVENT_NAME: "${{ github.event_name }}"
+          PR_BASE_SHA: "${{ github.event.pull_request.base.sha }}"
+          PR_HEAD_SHA: "${{ github.event.pull_request.head.sha }}"
+          PUSH_BEFORE_SHA: "${{ github.event.before }}"
+          GITHUB_SHA: "${{ github.sha }}"
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            pnpm exec commitlint --config commitlint.config.cjs --verbose \
+              --from "$PR_BASE_SHA" --to "$PR_HEAD_SHA"
+          elif [[ "$PUSH_BEFORE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            pnpm exec commitlint --config commitlint.config.cjs --verbose --to "$GITHUB_SHA"
+          else
+            pnpm exec commitlint --config commitlint.config.cjs --verbose \
+              --from "$PUSH_BEFORE_SHA" --to "$GITHUB_SHA"
+          fi
+
+      - name: Lint PR title (squash commit message)
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: echo "$PR_TITLE" | pnpm exec commitlint --config commitlint.pr-title.config.cjs
