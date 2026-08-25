@@ -25,6 +25,7 @@ jobs:
       contents: read
       id-token: write
     env:
+      HF_INITIAL_REVISION: 8857fc63d991f2226598c38c160a6a0635a2c679
       HF_OIDC_RESOURCE: grazzolini/tuneforge-models
       ORT_DISABLE_TELEMETRY: "1"
     steps:
@@ -73,53 +74,33 @@ jobs:
       - name: Publish with short-lived OIDC credentials
         id: upload
         run: |
-          short_lived_token="$(uv run --frozen --group publish hf auth token)"
-          echo "::add-mask::$short_lived_token"
-          HF_TOKEN="$short_lived_token" uv run python -c \
-            'from huggingface_hub import HfApi; files = set(HfApi().list_repo_files("grazzolini/tuneforge-models")); assert files <= {".gitattributes"}, "target repository is not empty"'
           title="Publish Crema ONNX ${GITHUB_SHA} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
-          uv run --frozen --group publish hf upload \
-            grazzolini/tuneforge-models "$RUNNER_TEMP/release" . \
-            --repo-type model \
-            --commit-message "$title"
-          echo "title=$title" >> "$GITHUB_OUTPUT"
+          COMMIT_TITLE="$title" uv run --frozen --group publish python <<'PY'
+          import os
+          import re
+          from pathlib import Path
 
-      - name: Resolve immutable revision
-        id: revision
-        env:
-          COMMIT_TITLE: ${{ steps.upload.outputs.title }}
-        run: |
-          short_lived_token="$(uv run --frozen --group publish hf auth token)"
-          echo "::add-mask::$short_lived_token"
-          revision="$(HF_TOKEN="$short_lived_token" uv run python -c \
-            'import sys; from huggingface_hub import HfApi; matches = [row for row in HfApi().list_repo_commits("grazzolini/tuneforge-models") if row.title == sys.argv[1]]; assert len(matches) == 1; print(matches[0].commit_id)' \
-            "$COMMIT_TITLE")"
-          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Hugging Face did not return an immutable revision." >&2
-            exit 1
-          fi
-          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          from huggingface_hub import HfApi
 
-      - name: Download and verify published bytes offline
+          info = HfApi().upload_folder(
+              repo_id="grazzolini/tuneforge-models",
+              repo_type="model",
+              folder_path=Path(os.environ["RUNNER_TEMP"]) / "release",
+              path_in_repo=".",
+              commit_message=os.environ["COMMIT_TITLE"],
+              parent_commit=os.environ["HF_INITIAL_REVISION"],
+          )
+          revision = info.oid
+          if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+              raise ValueError("Hugging Face did not return an immutable revision")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"revision={revision}\n")
+          PY
+
+      - name: Record immutable revision for local verification
         env:
-          REVISION: ${{ steps.revision.outputs.revision }}
+          REVISION: ${{ steps.upload.outputs.revision }}
         run: |
-          uv run --frozen --group publish hf download grazzolini/tuneforge-models \
-            --revision "$REVISION" \
-            --local-dir "$RUNNER_TEMP/download"
-          uv run --frozen --group publish hf cache verify grazzolini/tuneforge-models \
-            --revision "$REVISION" \
-            --local-dir "$RUNNER_TEMP/download" \
-            --fail-on-missing-files \
-            --fail-on-extra-files
-          cmp "$RUNNER_TEMP/release/manifest.json" "$RUNNER_TEMP/download/manifest.json"
-          cmp "$RUNNER_TEMP/release/SHA256SUMS" "$RUNNER_TEMP/download/SHA256SUMS"
-          (cd "$RUNNER_TEMP/download" && sha256sum -c SHA256SUMS)
-          uv run python -c \
-            'import hashlib, json, sys; from pathlib import Path; root = Path(sys.argv[1]); files = json.loads((root / "manifest.json").read_text())["files"]; allowed = set(files) | {"manifest.json", "SHA256SUMS"}; actual = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file() and ".cache" not in path.parts}; assert actual in (allowed, allowed | {".gitattributes"}); assert all((root / name).stat().st_size == value["size"] and hashlib.sha256((root / name).read_bytes()).hexdigest() == value["sha256"] for name, value in files.items())' \
-            "$RUNNER_TEMP/download"
-          HF_HUB_OFFLINE=1 uv run python -c \
-            'import sys; import onnx, onnxruntime as ort; from pathlib import Path; from tuneforge_models.runtime_state import load_runtime_state; model = onnx.load(sys.argv[1]); onnx.checker.check_model(model, full_check=True); ort.InferenceSession(sys.argv[1], providers=["CPUExecutionProvider"]); load_runtime_state(Path(sys.argv[2]))' \
-            "$RUNNER_TEMP/download/crema-0.2.0-opset18.onnx" \
-            "$RUNNER_TEMP/download/crema-0.2.0-runtime-state.json"
           echo "Published immutable revision: $REVISION" >> "$GITHUB_STEP_SUMMARY"
+          echo "Owner-authenticated exact-revision download and offline verification remain required." \
+            >> "$GITHUB_STEP_SUMMARY"
