@@ -1,0 +1,124 @@
+name: Publish Crema ONNX
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_private_publication:
+        description: Publish validated bytes to the private Hugging Face repository
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-crema-onnx
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: inputs.confirm_private_publication && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: model-publication
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      HF_OIDC_RESOURCE: grazzolini/tuneforge-models
+      ORT_DISABLE_TELEMETRY: "1"
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.5"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --group dev --group publish
+
+      - name: Download verified Crema source
+        run: |
+          mkdir -p "$RUNNER_TEMP/source"
+          uv run --isolated --no-group dev --group convert python -m pip download \
+            --no-deps --only-binary=:all: \
+            --dest "$RUNNER_TEMP/source" crema==0.2.0
+
+      - name: Build, validate, and stage canonical bytes
+        run: |
+          uv run --isolated --no-group dev --group convert tuneforge-models build \
+            --wheel "$RUNNER_TEMP/source/crema-0.2.0-py3-none-any.whl" \
+            --output "$RUNNER_TEMP/build-a"
+          uv run --isolated --no-group dev --group convert tuneforge-models build \
+            --wheel "$RUNNER_TEMP/source/crema-0.2.0-py3-none-any.whl" \
+            --output "$RUNNER_TEMP/build-b"
+          uv run tuneforge-models validate \
+            --first "$RUNNER_TEMP/build-a" \
+            --second "$RUNNER_TEMP/build-b" \
+            --report "$RUNNER_TEMP/validation.json"
+          uv run tuneforge-models assemble \
+            --build "$RUNNER_TEMP/build-a" \
+            --output "$RUNNER_TEMP/release" \
+            --repository "$PWD" \
+            --validation-report "$RUNNER_TEMP/validation.json"
+
+      - name: Publish with short-lived OIDC credentials
+        id: upload
+        run: |
+          short_lived_token="$(hf auth token)"
+          echo "::add-mask::$short_lived_token"
+          HF_TOKEN="$short_lived_token" uv run python -c \
+            'from huggingface_hub import HfApi; files = set(HfApi().list_repo_files("grazzolini/tuneforge-models")); assert files <= {".gitattributes"}, "target repository is not empty"'
+          title="Publish Crema ONNX ${GITHUB_SHA} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+          hf upload grazzolini/tuneforge-models "$RUNNER_TEMP/release" . \
+            --repo-type model \
+            --commit-message "$title"
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve immutable revision
+        id: revision
+        env:
+          COMMIT_TITLE: ${{ steps.upload.outputs.title }}
+        run: |
+          short_lived_token="$(hf auth token)"
+          echo "::add-mask::$short_lived_token"
+          revision="$(HF_TOKEN="$short_lived_token" uv run python -c \
+            'import sys; from huggingface_hub import HfApi; matches = [row for row in HfApi().list_repo_commits("grazzolini/tuneforge-models") if row.title == sys.argv[1]]; assert len(matches) == 1; print(matches[0].commit_id)' \
+            "$COMMIT_TITLE")"
+          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Hugging Face did not return an immutable revision." >&2
+            exit 1
+          fi
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Download and verify published bytes offline
+        env:
+          REVISION: ${{ steps.revision.outputs.revision }}
+        run: |
+          hf download grazzolini/tuneforge-models \
+            --revision "$REVISION" \
+            --local-dir "$RUNNER_TEMP/download"
+          hf cache verify grazzolini/tuneforge-models \
+            --revision "$REVISION" \
+            --local-dir "$RUNNER_TEMP/download" \
+            --fail-on-missing-files \
+            --fail-on-extra-files
+          cmp "$RUNNER_TEMP/release/manifest.json" "$RUNNER_TEMP/download/manifest.json"
+          cmp "$RUNNER_TEMP/release/SHA256SUMS" "$RUNNER_TEMP/download/SHA256SUMS"
+          (cd "$RUNNER_TEMP/download" && sha256sum -c SHA256SUMS)
+          uv run python -c \
+            'import hashlib, json, sys; from pathlib import Path; root = Path(sys.argv[1]); files = json.loads((root / "manifest.json").read_text())["files"]; allowed = set(files) | {"manifest.json", "SHA256SUMS"}; actual = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file() and ".cache" not in path.parts}; assert actual in (allowed, allowed | {".gitattributes"}); assert all((root / name).stat().st_size == value["size"] and hashlib.sha256((root / name).read_bytes()).hexdigest() == value["sha256"] for name, value in files.items())' \
+            "$RUNNER_TEMP/download"
+          HF_HUB_OFFLINE=1 uv run python -c \
+            'import sys; import onnx, onnxruntime as ort; from pathlib import Path; from tuneforge_models.runtime_state import load_runtime_state; model = onnx.load(sys.argv[1]); onnx.checker.check_model(model, full_check=True); ort.InferenceSession(sys.argv[1], providers=["CPUExecutionProvider"]); load_runtime_state(Path(sys.argv[2]))' \
+            "$RUNNER_TEMP/download/crema-0.2.0-opset18.onnx" \
+            "$RUNNER_TEMP/download/crema-0.2.0-runtime-state.json"
+          echo "Published immutable revision: $REVISION" >> "$GITHUB_STEP_SUMMARY"

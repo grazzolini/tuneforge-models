@@ -19,6 +19,9 @@ readonly REQUIRED_FILES=(
   "CONTRIBUTING.md"
   "LICENSE"
   "LICENSES/crema-0.2.0-BSD-2-Clause.txt"
+  "models/crema-0.2.0/MODEL_CARD.md"
+  "models/crema-0.2.0/build-spec.json"
+  "pyproject.toml"
   "README.md"
   "SECURITY.md"
   "THIRD_PARTY_NOTICES.md"
@@ -28,6 +31,14 @@ readonly REQUIRED_FILES=(
   "pnpm-lock.yaml"
   "scripts/check-repository.sh"
   "scripts/commitlint.test.mjs"
+  "src/tuneforge_models/__init__.py"
+  "src/tuneforge_models/build.py"
+  "src/tuneforge_models/cli.py"
+  "src/tuneforge_models/integrity.py"
+  "src/tuneforge_models/release.py"
+  "src/tuneforge_models/runtime_state.py"
+  "src/tuneforge_models/spec.py"
+  "src/tuneforge_models/validate.py"
 )
 
 compute_sha256() {
@@ -65,6 +76,11 @@ fi
 
 if git grep -nI -E '[[:blank:]]+$' -- .; then
   echo "Tracked text files contain trailing whitespace." >&2
+  exit 1
+fi
+
+if git ls-files -z | grep -zE '\.(h5|onnx|pkl|npz)$' >/dev/null; then
+  echo "Generated model, weight, pickle, or reference artifact is tracked." >&2
   exit 1
 fi
 
