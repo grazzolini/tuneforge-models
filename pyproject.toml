@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tuneforge-models"
+version = "0.1.0"
+description = "Reproducible conversion and validation tooling for TuneForge model artifacts"
+requires-python = "==3.11.*"
+dependencies = [
+  "numpy==1.26.4",
+  "onnx==1.17.0",
+]
+
+[dependency-groups]
+convert = [
+  "crema==0.2.0",
+  "h5py==3.10.0",
+  "keras==2.15.0",
+  "librosa==0.10.2.post1",
+  "pip==25.2",
+  "pumpp==0.6.0",
+  "scikit-learn==1.5.2",
+  "setuptools==80.9.0",
+  "tensorflow==2.15.1",
+  "tf2onnx==1.16.1",
+]
+dev = [
+  "mypy==1.17.1",
+  "onnxruntime==1.29.0",
+  "pytest==8.4.2",
+  "ruff==0.12.12",
+]
+publish = ["huggingface-hub==1.19.0"]
+
+[tool.uv]
+conflicts = [
+  [
+    { group = "convert" },
+    { group = "dev" },
+  ],
+]
+
+[project.scripts]
+tuneforge-models = "tuneforge_models.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tuneforge_models"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src", "tests"]
+mypy_path = "src"

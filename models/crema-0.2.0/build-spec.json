@@ -1,0 +1,31 @@
+{
+  "artifact": {
+    "model_filename": "crema-0.2.0-opset18.onnx",
+    "runtime_state_filename": "crema-0.2.0-runtime-state.json"
+  },
+  "conversion": {
+    "onnx": "1.17.0",
+    "onnxruntime": "1.29.0",
+    "opset": 18,
+    "python": "3.11",
+    "tensorflow": "2.15.1",
+    "tf2onnx": "1.16.1"
+  },
+  "gates": {
+    "argmax_exact": true,
+    "confidence_maximum_absolute_difference": 0.1,
+    "four_output_heads": true,
+    "run_to_run_timeline_drift": 0,
+    "deterministic_scorer_input_exact": true,
+    "semantic_timeline_exact": true,
+    "tensor_maximum_absolute_difference_reported": true
+  },
+  "schema_version": 1,
+  "source": {
+    "h5_sha256": "08b80e5b648e743c89284e9bc0b12b993dad1129157a75e0de70e076b0b8a235",
+    "name": "crema",
+    "upstream_tag_commit": "051c91697fd16856a0a1019cc06ee1f11fb52c5f",
+    "version": "0.2.0",
+    "wheel_sha256": "b2787afd0367463438ca2b9b2944c490308eee1f307e5796078ec540a6281484"
+  }
+}

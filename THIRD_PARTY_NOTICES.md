@@ -40,3 +40,10 @@ in its documentation or other accompanying materials.
 
 TuneForge's MIT license does not relicense Crema, its model files, or conversion
 output derived from them.
+
+The reproducible conversion pipeline preserves the verified wheel as its source
+boundary and records the embedded H5 SHA-256 as
+`08b80e5b648e743c89284e9bc0b12b993dad1129157a75e0de70e076b0b8a235`.
+Crema does not ship a machine-readable per-track training manifest, so the
+converted artifact's model card states that limitation and does not claim
+TuneForge trained the model or owns upstream datasets.
