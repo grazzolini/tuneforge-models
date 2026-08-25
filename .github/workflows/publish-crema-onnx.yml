@@ -73,12 +73,13 @@ jobs:
       - name: Publish with short-lived OIDC credentials
         id: upload
         run: |
-          short_lived_token="$(hf auth token)"
+          short_lived_token="$(uv run --frozen --group publish hf auth token)"
           echo "::add-mask::$short_lived_token"
           HF_TOKEN="$short_lived_token" uv run python -c \
             'from huggingface_hub import HfApi; files = set(HfApi().list_repo_files("grazzolini/tuneforge-models")); assert files <= {".gitattributes"}, "target repository is not empty"'
           title="Publish Crema ONNX ${GITHUB_SHA} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
-          hf upload grazzolini/tuneforge-models "$RUNNER_TEMP/release" . \
+          uv run --frozen --group publish hf upload \
+            grazzolini/tuneforge-models "$RUNNER_TEMP/release" . \
             --repo-type model \
             --commit-message "$title"
           echo "title=$title" >> "$GITHUB_OUTPUT"
@@ -88,7 +89,7 @@ jobs:
         env:
           COMMIT_TITLE: ${{ steps.upload.outputs.title }}
         run: |
-          short_lived_token="$(hf auth token)"
+          short_lived_token="$(uv run --frozen --group publish hf auth token)"
           echo "::add-mask::$short_lived_token"
           revision="$(HF_TOKEN="$short_lived_token" uv run python -c \
             'import sys; from huggingface_hub import HfApi; matches = [row for row in HfApi().list_repo_commits("grazzolini/tuneforge-models") if row.title == sys.argv[1]]; assert len(matches) == 1; print(matches[0].commit_id)' \
@@ -103,10 +104,10 @@ jobs:
         env:
           REVISION: ${{ steps.revision.outputs.revision }}
         run: |
-          hf download grazzolini/tuneforge-models \
+          uv run --frozen --group publish hf download grazzolini/tuneforge-models \
             --revision "$REVISION" \
             --local-dir "$RUNNER_TEMP/download"
-          hf cache verify grazzolini/tuneforge-models \
+          uv run --frozen --group publish hf cache verify grazzolini/tuneforge-models \
             --revision "$REVISION" \
             --local-dir "$RUNNER_TEMP/download" \
             --fail-on-missing-files \
