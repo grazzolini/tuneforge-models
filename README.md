@@ -5,10 +5,10 @@ Source, provenance, and release tooling for machine-learning models used by
 
 ## Current status
 
-No model artifact or TensorFlow replacement is published yet. TuneForge keeps
-its current Crema integration during day-to-day evaluation. Future publication
-remains gated on documented source and training provenance, redistribution
-review, reproducible conversion, and validation evidence. See
+Crema 0.2.0 ONNX is privately published for controlled evaluation at immutable
+revision `65af18f49af5101267fd28f15ac8c452d98b8e3d`. TuneForge keeps Crema with
+TensorFlow as its default during day-to-day evaluation. This Git repository
+contains no model binary; public promotion remains separately gated. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the Crema 0.2.0 record.
 
 ## License
