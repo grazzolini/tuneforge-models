@@ -5,7 +5,8 @@ Guidance for automated coding agents working in this repository.
 ## Scope
 
 This repository holds source, provenance records, validation, and release
-tooling for TuneForge model artifacts. It currently publishes no model binary.
+tooling for TuneForge model artifacts. Model binaries stay out of Git; approved
+artifacts publish only through the gated external workflow.
 
 ## Hard rules
 
