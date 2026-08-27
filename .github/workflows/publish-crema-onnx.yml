@@ -3,8 +3,8 @@ name: Publish Crema ONNX
 on:
   workflow_dispatch:
     inputs:
-      confirm_private_publication:
-        description: Publish validated bytes to the private Hugging Face repository
+      confirm_publication:
+        description: Publish validated bytes to the public Hugging Face repository
         required: true
         type: boolean
         default: false
@@ -18,14 +18,14 @@ concurrency:
 
 jobs:
   publish:
-    if: inputs.confirm_private_publication && github.ref == 'refs/heads/main'
+    if: inputs.confirm_publication && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment: model-publication
     permissions:
+      attestations: write
       contents: read
       id-token: write
     env:
-      HF_INITIAL_REVISION: 8857fc63d991f2226598c38c160a6a0635a2c679
       HF_OIDC_RESOURCE: grazzolini/tuneforge-models
       ORT_DISABLE_TELEMETRY: "1"
     steps:
@@ -71,8 +71,50 @@ jobs:
             --repository "$PWD" \
             --validation-report "$RUNNER_TEMP/validation.json"
 
+      - name: Resolve current Hugging Face head
+        id: parent
+        run: |
+          uv run --frozen --group publish python <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          from huggingface_hub import HfApi
+
+          api = HfApi()
+          revision = api.repo_info(
+              repo_id="grazzolini/tuneforge-models",
+              repo_type="model",
+              revision="main",
+          ).sha
+          if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+              raise ValueError("Hugging Face did not return an immutable parent revision")
+          release = Path(os.environ["RUNNER_TEMP"]) / "release"
+          staged = {
+              path.relative_to(release).as_posix()
+              for path in release.rglob("*")
+              if path.is_file()
+          }
+          remote = set(
+              api.list_repo_files(
+                  repo_id="grazzolini/tuneforge-models",
+                  repo_type="model",
+                  revision=revision,
+              )
+          )
+          if remote != staged | {".gitattributes"}:
+              raise ValueError(
+                  "Hugging Face repository layout differs from the staged release; "
+                  "perform a reviewed repository-layout migration before publication"
+              )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"revision={revision}\n")
+          PY
+
       - name: Publish with short-lived OIDC credentials
         id: upload
+        env:
+          PARENT_REVISION: ${{ steps.parent.outputs.revision }}
         run: |
           title="Publish Crema ONNX ${GITHUB_SHA} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
           COMMIT_TITLE="$title" uv run --frozen --group publish python <<'PY'
@@ -88,7 +130,7 @@ jobs:
               folder_path=Path(os.environ["RUNNER_TEMP"]) / "release",
               path_in_repo=".",
               commit_message=os.environ["COMMIT_TITLE"],
-              parent_commit=os.environ["HF_INITIAL_REVISION"],
+              parent_commit=os.environ["PARENT_REVISION"],
           )
           revision = info.oid
           if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
@@ -97,10 +139,78 @@ jobs:
               output.write(f"revision={revision}\n")
           PY
 
-      - name: Record immutable revision for local verification
+      - name: Download and verify published bytes anonymously
         env:
           REVISION: ${{ steps.upload.outputs.revision }}
         run: |
+          HF_HOME="$RUNNER_TEMP/anonymous-hf-home" \
+            HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
+            uv run --frozen --group dev --group publish python <<'PY'
+          import os
+          from pathlib import Path
+
+          import onnx
+          import onnxruntime as ort
+          from huggingface_hub import snapshot_download
+
+          from tuneforge_models.runtime_state import load_runtime_state
+          from tuneforge_models.spec import MODEL_FILENAME, STATE_FILENAME
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          release = root / "release"
+          download = root / "download"
+          snapshot_download(
+              repo_id="grazzolini/tuneforge-models",
+              repo_type="model",
+              revision=os.environ["REVISION"],
+              local_dir=download,
+              token=False,
+          )
+
+          staged = {
+              path.relative_to(release).as_posix(): path
+              for path in release.rglob("*")
+              if path.is_file()
+          }
+          published = {
+              path.relative_to(download).as_posix(): path
+              for path in download.rglob("*")
+              if path.is_file() and ".cache" not in path.parts
+          }
+          if set(published) != set(staged) | {".gitattributes"}:
+              raise ValueError("published file set does not match the staged release")
+          for name, source in staged.items():
+              if source.read_bytes() != published[name].read_bytes():
+                  raise ValueError(f"published file differs from staged release: {name}")
+
+          os.environ["HF_HUB_OFFLINE"] = "1"
+          model_path = download / MODEL_FILENAME
+          onnx.checker.check_model(onnx.load(model_path), full_check=True)
+          session = ort.InferenceSession(
+              model_path.as_posix(), providers=["CPUExecutionProvider"]
+          )
+          if session.get_providers() != ["CPUExecutionProvider"]:
+              raise ValueError("unexpected ONNX Runtime provider")
+          load_runtime_state(download / STATE_FILENAME)
+          PY
+          (cd "$RUNNER_TEMP/download" && sha256sum -c SHA256SUMS)
+
+      - name: Attest verified public artifacts
+        id: provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/release/crema-0.2.0-opset18.onnx
+            ${{ runner.temp }}/release/crema-0.2.0-runtime-state.json
+            ${{ runner.temp }}/release/manifest.json
+            ${{ runner.temp }}/release/SHA256SUMS
+            ${{ runner.temp }}/release/README.md
+            ${{ runner.temp }}/release/LICENSES/crema-0.2.0-BSD-2-Clause.txt
+
+      - name: Record immutable revision
+        env:
+          ATTESTATION_URL: ${{ steps.provenance.outputs.attestation-url }}
+          REVISION: ${{ steps.upload.outputs.revision }}
+        run: |
           echo "Published immutable revision: $REVISION" >> "$GITHUB_STEP_SUMMARY"
-          echo "Owner-authenticated exact-revision download and offline verification remain required." \
-            >> "$GITHUB_STEP_SUMMARY"
+          echo "Provenance attestation: $ATTESTATION_URL" >> "$GITHUB_STEP_SUMMARY"

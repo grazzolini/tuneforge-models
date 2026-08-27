@@ -1,0 +1,97 @@
+name: Attest published Crema ONNX
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_attestation:
+        description: Verify and attest the pinned public Hugging Face revision
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: attest-crema-onnx
+  cancel-in-progress: false
+
+jobs:
+  attest:
+    if: inputs.confirm_attestation && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    env:
+      HF_REVISION: 65af18f49af5101267fd28f15ac8c452d98b8e3d
+      ORT_DISABLE_TELEMETRY: "1"
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.5"
+          enable-cache: true
+
+      - name: Install locked validation dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Download pinned revision anonymously
+        run: |
+          release="$RUNNER_TEMP/release"
+          base="https://huggingface.co/grazzolini/tuneforge-models/resolve/$HF_REVISION"
+          mkdir -p "$release/LICENSES"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$release/crema-0.2.0-opset18.onnx" \
+            "$base/crema-0.2.0-opset18.onnx"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$release/crema-0.2.0-runtime-state.json" \
+            "$base/crema-0.2.0-runtime-state.json"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$release/manifest.json" "$base/manifest.json"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$release/SHA256SUMS" "$base/SHA256SUMS"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$release/README.md" "$base/README.md"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$release/LICENSES/crema-0.2.0-BSD-2-Clause.txt" \
+            "$base/LICENSES/crema-0.2.0-BSD-2-Clause.txt"
+
+      - name: Verify exact published bytes offline
+        run: |
+          release="$RUNNER_TEMP/release"
+          echo "98dc22ac0e94d76880b7ccc2f520e7bd9b35583ed846df013a105d0ff5e2beb7  $release/SHA256SUMS" \
+            | sha256sum -c -
+          (cd "$release" && sha256sum -c SHA256SUMS)
+          HF_HUB_OFFLINE=1 uv run --frozen --group dev python -c \
+            'import sys; import onnx, onnxruntime as ort; from pathlib import Path; from tuneforge_models.runtime_state import load_runtime_state; model = onnx.load(sys.argv[1]); onnx.checker.check_model(model, full_check=True); session = ort.InferenceSession(sys.argv[1], providers=["CPUExecutionProvider"]); assert session.get_providers() == ["CPUExecutionProvider"]; load_runtime_state(Path(sys.argv[2]))' \
+            "$release/crema-0.2.0-opset18.onnx" \
+            "$release/crema-0.2.0-runtime-state.json"
+
+      - name: Attest verified public artifacts
+        id: provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/release/crema-0.2.0-opset18.onnx
+            ${{ runner.temp }}/release/crema-0.2.0-runtime-state.json
+            ${{ runner.temp }}/release/manifest.json
+            ${{ runner.temp }}/release/SHA256SUMS
+            ${{ runner.temp }}/release/README.md
+            ${{ runner.temp }}/release/LICENSES/crema-0.2.0-BSD-2-Clause.txt
+
+      - name: Record attested revision
+        env:
+          ATTESTATION_URL: ${{ steps.provenance.outputs.attestation-url }}
+        run: |
+          echo "Attested Hugging Face revision: $HF_REVISION" >> "$GITHUB_STEP_SUMMARY"
+          echo "Provenance attestation: $ATTESTATION_URL" >> "$GITHUB_STEP_SUMMARY"

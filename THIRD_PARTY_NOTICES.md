@@ -33,11 +33,12 @@ model files as package data, and the distribution-level BSD 2-Clause notice is
 the applicable license evidence shipped with those files. That evidence does
 not document the model's full training-data provenance or separately resolve
 every right that may be relevant to derived or converted weights. TuneForge
-project maintainers approved the converted artifact's private publication for
-controlled evaluation; the approved artifact ships this notice. That approval
-does not establish public redistribution authority or comprehensive legal
-clearance. Any approved binary redistribution must reproduce the copyright
-notice, conditions, and disclaimer in its documentation or other accompanying
+project maintainers approved public publication of the converted artifact at
+immutable Hugging Face revision
+`65af18f49af5101267fd28f15ac8c452d98b8e3d`; the published artifact ships this
+notice. This source and license evidence does not provide comprehensive
+training-data provenance. Binary redistributions must reproduce the copyright
+notice, conditions, and disclaimer in their documentation or other accompanying
 materials.
 
 TuneForge's MIT license does not relicense Crema, its model files, or conversion
