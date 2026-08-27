@@ -5,11 +5,21 @@ Source, provenance, and release tooling for machine-learning models used by
 
 ## Current status
 
-Crema 0.2.0 ONNX is privately published for controlled evaluation at immutable
-revision `65af18f49af5101267fd28f15ac8c452d98b8e3d`. TuneForge keeps Crema with
+Crema 0.2.0 ONNX is publicly available from
+[Hugging Face](https://huggingface.co/grazzolini/tuneforge-models/tree/65af18f49af5101267fd28f15ac8c452d98b8e3d)
+at immutable revision `65af18f49af5101267fd28f15ac8c452d98b8e3d`. TuneForge keeps Crema with
 TensorFlow as its default during day-to-day evaluation. This Git repository
-contains no model binary; public promotion remains separately gated. See
+contains source, provenance records, validation, and publication tooling rather
+than model binaries. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the Crema 0.2.0 record.
+
+## Publication
+
+Maintainers publish from `main` by manually dispatching the `Publish Crema ONNX`
+GitHub Actions workflow. It rebuilds and validates two candidates, authenticates
+to Hugging Face with a short-lived OIDC credential, updates the current Hub head,
+verifies the resulting immutable revision through an anonymous download, and
+records GitHub build-provenance attestations for the verified files.
 
 ## License
 
