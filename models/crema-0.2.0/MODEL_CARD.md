@@ -17,8 +17,9 @@ fixed inference state, integrity manifest, and validation tooling.
 
 ## Intended use
 
-Experimental CPU chord recognition in local TuneForge builds. TensorFlow Crema
-remains TuneForge's default while this conversion receives day-to-day testing.
+CPU chord recognition for TuneForge's default Advanced Chords engine. TuneForge packages this
+pinned model and its runtime state whenever Advanced Chords is enabled; the Crema Python package,
+TensorFlow, and Keras are not required at runtime.
 The model is not intended for safety-critical or unrelated audio classification.
 
 ## Inputs and outputs
