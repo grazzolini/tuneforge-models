@@ -3,25 +3,32 @@
 Source, provenance, and release tooling for machine-learning models used by
 [TuneForge](https://github.com/grazzolini/tuneforge).
 
-## Current status
+## Model families
 
 Crema 0.2.0 ONNX is publicly available from
 [Hugging Face](https://huggingface.co/grazzolini/tuneforge-models/tree/65af18f49af5101267fd28f15ac8c452d98b8e3d)
 at immutable revision `65af18f49af5101267fd28f15ac8c452d98b8e3d`. TuneForge uses the converted
 Crema model with ONNX Runtime as the sole Advanced Chords implementation while preserving the `crema-advanced`
 engine identity. TuneForge packages the pinned 2.2 MB model and runtime state whenever Advanced
-Chords is enabled. This Git repository
-contains source, provenance records, validation, and publication tooling rather
-than model binaries. See
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the Crema 0.2.0 record.
+Chords is enabled.
+
+Beat This 1.1.0 `small0` FP32 export tooling targets ExecuTorch 1.4.0/XNNPACK
+with a dynamic `[1,N,128]` input contract for `N=13..1500`. Its generated PTE
+stays out of Git and is not public until the dedicated publication workflow
+passes maintainer approval, two-build host validation, anonymous download
+verification, and provenance attestation.
+
+This Git repository contains source, provenance records, validation, and
+publication tooling rather than model binaries. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for both model records.
 
 ## Publication
 
-Maintainers publish from `main` by manually dispatching the `Publish Crema ONNX`
-GitHub Actions workflow. It rebuilds and validates two candidates, authenticates
-to Hugging Face with a short-lived OIDC credential, updates the current Hub head,
-verifies the resulting immutable revision through an anonymous download, and
-records GitHub build-provenance attestations for the verified files.
+Maintainers publish each family from `main` by manually dispatching its workflow.
+Both workflows require the protected `model-publication` environment, rebuild and
+validate two candidates, authenticate to Hugging Face with a short-lived OIDC
+credential, preserve the other family's exact bytes, verify the immutable revision
+through an anonymous download, and attest the verified files.
 
 ## License
 

@@ -21,6 +21,16 @@ from .spec import (
     STATE_FILENAME,
 )
 
+BEAT_THIS_PREFIX = "beat-this-small0/"
+
+
+def validate_hub_coexistence(remote: set[str], crema: set[str]) -> set[str]:
+    """Allow the existing Hub root plus one separately owned Beat This directory."""
+    extras = remote - crema - {".gitattributes"}
+    if not crema <= remote or any(not path.startswith(BEAT_THIS_PREFIX) for path in extras):
+        raise ValueError("Hugging Face repository layout differs from the expected families")
+    return extras
+
 
 def assemble(
     build_directory: Path, release_directory: Path, repository: Path, validation_report: Path

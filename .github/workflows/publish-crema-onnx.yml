@@ -80,6 +80,7 @@ jobs:
           from pathlib import Path
 
           from huggingface_hub import HfApi
+          from tuneforge_models.release import validate_hub_coexistence
 
           api = HfApi()
           revision = api.repo_info(
@@ -102,11 +103,7 @@ jobs:
                   revision=revision,
               )
           )
-          if remote != staged | {".gitattributes"}:
-              raise ValueError(
-                  "Hugging Face repository layout differs from the staged release; "
-                  "perform a reviewed repository-layout migration before publication"
-              )
+          validate_hub_coexistence(remote, staged)
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"revision={revision}\n")
           PY
@@ -153,6 +150,7 @@ jobs:
           import onnxruntime as ort
           from huggingface_hub import snapshot_download
 
+          from tuneforge_models.release import validate_hub_coexistence
           from tuneforge_models.runtime_state import load_runtime_state
           from tuneforge_models.spec import MODEL_FILENAME, STATE_FILENAME
 
@@ -177,8 +175,9 @@ jobs:
               for path in download.rglob("*")
               if path.is_file() and ".cache" not in path.parts
           }
-          if set(published) != set(staged) | {".gitattributes"}:
+          if not set(staged) <= set(published):
               raise ValueError("published file set does not match the staged release")
+          validate_hub_coexistence(set(published), set(staged))
           for name, source in staged.items():
               if source.read_bytes() != published[name].read_bytes():
                   raise ValueError(f"published file differs from staged release: {name}")
