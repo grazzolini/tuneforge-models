@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from tuneforge_models.integrity import digest
-from tuneforge_models.release import assemble
+from tuneforge_models.release import assemble, validate_hub_coexistence
 from tuneforge_models.spec import MODEL_FILENAME, STATE_FILENAME
 
 
@@ -66,3 +68,16 @@ def test_release_rejects_unvalidated_candidate(tmp_path: Path) -> None:
         assert str(error) == "build-not-covered-by-passed-validation"
     else:
         raise AssertionError("unvalidated candidate was accepted")
+
+
+def test_hub_coexistence_allows_only_beat_this_subdirectory() -> None:
+    crema = {"README.md", "manifest.json"}
+    beat_this = {"beat-this-small0/beat-this-small0.pte"}
+
+    assert validate_hub_coexistence(crema | beat_this | {".gitattributes"}, crema) == beat_this
+
+    with pytest.raises(ValueError, match="layout differs"):
+        validate_hub_coexistence(crema | {"unexpected.bin"}, crema)
+
+    with pytest.raises(ValueError, match="layout differs"):
+        validate_hub_coexistence({"README.md"}, crema)

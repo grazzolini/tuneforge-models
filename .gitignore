@@ -22,10 +22,12 @@ __pycache__/
 *.pyc
 
 # Model source and build outputs never belong in Git.
+*.ckpt
 *.h5
 *.onnx
 *.pkl
 *.npz
+*.pte
 build/
 dist/
 

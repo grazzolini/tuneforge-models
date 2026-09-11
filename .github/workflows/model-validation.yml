@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  crema:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
@@ -43,7 +43,7 @@ jobs:
             --no-deps --only-binary=:all: \
             --dest "$RUNNER_TEMP/source" crema==0.2.0
 
-      - name: Build and validate two independent candidates
+      - name: Build, validate, and stage one family
         run: |
           uv run --isolated --no-group dev --group convert tuneforge-models build \
             --wheel "$RUNNER_TEMP/source/crema-0.2.0-py3-none-any.whl" \
@@ -65,3 +65,48 @@ jobs:
             echo "Unsafe build input entered the release directory." >&2
             exit 1
           fi
+
+  beat-this:
+    runs-on: ubuntu-24.04
+    env:
+      CHECKPOINT_SHA256: 6074be2c4d490c5f6101fcc374a1ec72ae93456e23bb6019783b849f5dc7d47b
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.5"
+          enable-cache: true
+
+      - name: Install locked Beat This dependencies
+        run: uv sync --frozen --no-group dev --group beat-this
+
+      - name: Download verified Beat This checkpoint
+        run: |
+          mkdir -p "$RUNNER_TEMP/source"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$RUNNER_TEMP/source/beat_this-small0.ckpt" \
+            "https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/small0.ckpt"
+          echo "$CHECKPOINT_SHA256  $RUNNER_TEMP/source/beat_this-small0.ckpt" \
+            | sha256sum -c -
+
+      - name: Build and validate two independent candidates
+        run: |
+          uv run --no-group dev --group beat-this tuneforge-models beat-this-build \
+            --checkpoint "$RUNNER_TEMP/source/beat_this-small0.ckpt" \
+            --output "$RUNNER_TEMP/build-a" --exporter-revision "$GITHUB_SHA"
+          uv run --no-group dev --group beat-this tuneforge-models beat-this-build \
+            --checkpoint "$RUNNER_TEMP/source/beat_this-small0.ckpt" \
+            --output "$RUNNER_TEMP/build-b" --exporter-revision "$GITHUB_SHA"
+          uv run --no-group dev --group beat-this tuneforge-models beat-this-release \
+            --first "$RUNNER_TEMP/build-a" --second "$RUNNER_TEMP/build-b" \
+            --checkpoint "$RUNNER_TEMP/source/beat_this-small0.ckpt" \
+            --output "$RUNNER_TEMP/release" --repository "$PWD"
+          (cd "$RUNNER_TEMP/release" && sha256sum -c SHA256SUMS)

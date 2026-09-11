@@ -50,3 +50,50 @@ boundary and records the embedded H5 SHA-256 as
 Crema does not ship a machine-readable per-track training manifest, so the
 converted artifact's model card states that limitation and does not claim
 TuneForge trained the model or owns upstream datasets.
+
+## Beat This 1.1.0 small0
+
+- Project: `beat-this`
+- Version: `1.1.0`; upstream tag commit:
+  `ad7974846029835307ba19a3d5cefbf40b243041`
+- Upstream: <https://github.com/CPJKU/beat_this>
+- Authors: Francesco Foscarin, Jan Schlüter, and Gerhard Widmer
+- Copyright: Copyright (c) 2024 Institute of Computational Perception, JKU Linz,
+  Austria
+- License text: [MIT](LICENSES/beat-this-1.1.0-MIT.txt)
+- PyPI source SHA-256:
+  `3017c741f972972a650edcaccfe5760687fe4f5587feaa98896d90f866c2435c`
+- PyPI wheel SHA-256:
+  `3f2b2d1e027c6dac380bf80c71555e3c28a4036a7f1af20129a945915a72a645`
+- `small0` checkpoint: 8,451,101 bytes; SHA-256
+  `6074be2c4d490c5f6101fcc374a1ec72ae93456e23bb6019783b849f5dc7d47b`
+
+The tagged package defines the authoritative checkpoint URL and offers `small0`
+for download and reuse. Its shipped MIT file is preserved byte-for-byte here.
+Current upstream documentation explicitly states that published model weights are
+MIT licensed; that explicit weights sentence was not present in the tagged 1.1.0
+README. This repository records both facts and does not infer training-dataset
+rights from the model license.
+
+Upstream documents training across multiple datasets and publishes annotations
+and spectrogram resources separately. It does not ship one complete
+machine-readable per-track training manifest with `small0`. Some training audio
+has separate copyright or Creative Commons restrictions. TuneForge does not claim
+ownership of training material or broader rights to those datasets.
+
+## ExecuTorch 1.4.0
+
+- Project: `ExecuTorch`
+- Version: `1.4.0`; upstream tag commit:
+  `3dd7ccd1d863fad22639dd2d918ae34a41ce45f0`
+- Upstream: <https://github.com/pytorch/executorch>
+- Android AAR: `org.pytorch:executorch-android:1.4.0`; 7,318,312 bytes; SHA-256
+  `a4a836b9fadd5b9afdf07b8533b2c3326695d04a58dd37e2cdfe709e804854fb`
+- License text:
+  [BSD 3-Clause](LICENSES/executorch-1.4.0-BSD-3-Clause.txt)
+
+The PTE does not embed the Android AAR. Release metadata pins the consumer runtime
+identity. TuneForge application packaging supplies that runtime separately and must
+preserve notices for the AAR and its resolved dependencies, including fbjni,
+NativeLoader, AndroidX Core, and Kotlin standard library. This record does not replace
+that app packaging review.
