@@ -206,7 +206,7 @@ def release(
     licenses = output / "LICENSES"
     licenses.mkdir()
     shutil.copyfile(first / MODEL_FILENAME, output / MODEL_FILENAME)
-    shutil.copyfile(repository / "models/beat-this-small0/MODEL_CARD.md", output / "README.md")
+    shutil.copyfile(repository / "models/beat-this/MODEL_CARD.md", output / "README.md")
     for name in (BEAT_THIS_LICENSE_FILENAME, EXECUTORCH_LICENSE_FILENAME):
         shutil.copyfile(repository / "LICENSES" / name, licenses / name)
     (output / "validation.json").write_text(

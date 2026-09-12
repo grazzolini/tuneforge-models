@@ -62,48 +62,48 @@ jobs:
             --wheel "$RUNNER_TEMP/source/crema-0.2.0-py3-none-any.whl" \
             --output "$RUNNER_TEMP/build-b"
           uv run tuneforge-models validate \
-            --first "$RUNNER_TEMP/build-a" \
-            --second "$RUNNER_TEMP/build-b" \
+            --first "$RUNNER_TEMP/build-a" --second "$RUNNER_TEMP/build-b" \
             --report "$RUNNER_TEMP/validation.json"
           uv run tuneforge-models assemble \
-            --build "$RUNNER_TEMP/build-a" \
-            --output "$RUNNER_TEMP/release" \
-            --repository "$PWD" \
-            --validation-report "$RUNNER_TEMP/validation.json"
+            --build "$RUNNER_TEMP/build-a" --output "$RUNNER_TEMP/release" \
+            --repository "$PWD" --validation-report "$RUNNER_TEMP/validation.json"
 
-      - name: Resolve current Hugging Face head
+      - name: Prepare exact family overlay
         id: parent
         run: |
-          uv run --frozen --group publish python <<'PY'
+          HF_HUB_DISABLE_IMPLICIT_TOKEN=1 uv run --frozen --group publish python <<'PY'
           import os
           import re
           from pathlib import Path
 
-          from huggingface_hub import HfApi
-          from tuneforge_models.release import validate_hub_coexistence
+          from huggingface_hub import HfApi, snapshot_download
+          from tuneforge_models.hub_layout import (
+              CREMA, publisher_overlay, read_tree, verify_target_inventory, write_tree,
+          )
 
+          root = Path(os.environ["RUNNER_TEMP"])
           api = HfApi()
           revision = api.repo_info(
-              repo_id="grazzolini/tuneforge-models",
-              repo_type="model",
-              revision="main",
+              "grazzolini/tuneforge-models", repo_type="model", revision="main", token=False
           ).sha
           if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
               raise ValueError("Hugging Face did not return an immutable parent revision")
-          release = Path(os.environ["RUNNER_TEMP"]) / "release"
-          staged = {
-              path.relative_to(release).as_posix()
-              for path in release.rglob("*")
-              if path.is_file()
-          }
-          remote = set(
-              api.list_repo_files(
-                  repo_id="grazzolini/tuneforge-models",
-                  repo_type="model",
-                  revision=revision,
-              )
+          verify_target_inventory(api.list_repo_files(
+              "grazzolini/tuneforge-models", repo_type="model", revision=revision, token=False,
+          ))
+          snapshot_download(
+              "grazzolini/tuneforge-models", repo_type="model", revision=revision,
+              local_dir=root / "parent", token=False,
           )
-          validate_hub_coexistence(remote, staged)
+          release = read_tree(root / "release")
+          expected = publisher_overlay(
+              read_tree(root / "parent"), CREMA, release,
+              Path("models/HUB_README.md").read_bytes(),
+          )
+          write_tree(expected, root / "expected")
+          overlay = {"README.md": expected["README.md"]}
+          overlay.update({f"crema/{name}": data for name, data in release.items()})
+          write_tree(overlay, root / "overlay")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"revision={revision}\n")
           PY
@@ -122,89 +122,64 @@ jobs:
           from huggingface_hub import HfApi
 
           info = HfApi().upload_folder(
-              repo_id="grazzolini/tuneforge-models",
-              repo_type="model",
-              folder_path=Path(os.environ["RUNNER_TEMP"]) / "release",
-              path_in_repo=".",
+              repo_id="grazzolini/tuneforge-models", repo_type="model",
+              folder_path=Path(os.environ["RUNNER_TEMP"]) / "overlay", path_in_repo=".",
               commit_message=os.environ["COMMIT_TITLE"],
               parent_commit=os.environ["PARENT_REVISION"],
           )
-          revision = info.oid
-          if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+          if re.fullmatch(r"[0-9a-f]{40}", info.oid) is None:
               raise ValueError("Hugging Face did not return an immutable revision")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-              output.write(f"revision={revision}\n")
+              output.write(f"revision={info.oid}\n")
           PY
 
       - name: Download and verify published bytes anonymously
         env:
           REVISION: ${{ steps.upload.outputs.revision }}
         run: |
-          HF_HOME="$RUNNER_TEMP/anonymous-hf-home" \
-            HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
+          HF_HOME="$RUNNER_TEMP/anonymous-hf-home" HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
             uv run --frozen --group dev --group publish python <<'PY'
           import os
           from pathlib import Path
 
           import onnx
           import onnxruntime as ort
-          from huggingface_hub import snapshot_download
-
-          from tuneforge_models.release import validate_hub_coexistence
+          from huggingface_hub import HfApi, snapshot_download
+          from tuneforge_models.hub_layout import (
+              read_tree, verify_target, verify_target_inventory,
+          )
           from tuneforge_models.runtime_state import load_runtime_state
           from tuneforge_models.spec import MODEL_FILENAME, STATE_FILENAME
 
           root = Path(os.environ["RUNNER_TEMP"])
-          release = root / "release"
-          download = root / "download"
+          verify_target_inventory(HfApi().list_repo_files(
+              "grazzolini/tuneforge-models", repo_type="model",
+              revision=os.environ["REVISION"], token=False,
+          ))
           snapshot_download(
-              repo_id="grazzolini/tuneforge-models",
-              repo_type="model",
-              revision=os.environ["REVISION"],
-              local_dir=download,
-              token=False,
+              "grazzolini/tuneforge-models", repo_type="model",
+              revision=os.environ["REVISION"], local_dir=root / "download", token=False,
           )
-
-          staged = {
-              path.relative_to(release).as_posix(): path
-              for path in release.rglob("*")
-              if path.is_file()
-          }
-          published = {
-              path.relative_to(download).as_posix(): path
-              for path in download.rglob("*")
-              if path.is_file() and ".cache" not in path.parts
-          }
-          if not set(staged) <= set(published):
-              raise ValueError("published file set does not match the staged release")
-          validate_hub_coexistence(set(published), set(staged))
-          for name, source in staged.items():
-              if source.read_bytes() != published[name].read_bytes():
-                  raise ValueError(f"published file differs from staged release: {name}")
-
+          published = read_tree(root / "download")
+          verify_target(published)
+          if published != read_tree(root / "expected"):
+              raise ValueError("published repository differs from the exact expected overlay")
           os.environ["HF_HUB_OFFLINE"] = "1"
-          model_path = download / MODEL_FILENAME
+          family = root / "download/crema"
+          model_path = family / MODEL_FILENAME
           onnx.checker.check_model(onnx.load(model_path), full_check=True)
-          session = ort.InferenceSession(
-              model_path.as_posix(), providers=["CPUExecutionProvider"]
-          )
+          session = ort.InferenceSession(model_path.as_posix(), providers=["CPUExecutionProvider"])
           if session.get_providers() != ["CPUExecutionProvider"]:
               raise ValueError("unexpected ONNX Runtime provider")
-          load_runtime_state(download / STATE_FILENAME)
+          load_runtime_state(family / STATE_FILENAME)
           PY
-          (cd "$RUNNER_TEMP/download" && sha256sum -c SHA256SUMS)
+          (cd "$RUNNER_TEMP/download/crema" && sha256sum -c SHA256SUMS)
 
       - name: Attest verified public artifacts
         id: provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: |
-            ${{ runner.temp }}/release/crema-0.2.0-opset18.onnx
-            ${{ runner.temp }}/release/crema-0.2.0-runtime-state.json
-            ${{ runner.temp }}/release/manifest.json
-            ${{ runner.temp }}/release/SHA256SUMS
-            ${{ runner.temp }}/release/README.md
-            ${{ runner.temp }}/release/LICENSES/crema-0.2.0-BSD-2-Clause.txt
+          subject-path: ${{ runner.temp }}/overlay/**
 
       - name: Record immutable revision
         env:

@@ -24,10 +24,11 @@ readonly REQUIRED_FILES=(
   "LICENSES/crema-0.2.0-BSD-2-Clause.txt"
   "LICENSES/beat-this-1.1.0-MIT.txt"
   "LICENSES/executorch-1.4.0-BSD-3-Clause.txt"
-  "models/beat-this-small0/MODEL_CARD.md"
-  "models/beat-this-small0/build-spec.json"
-  "models/crema-0.2.0/MODEL_CARD.md"
-  "models/crema-0.2.0/build-spec.json"
+  "models/HUB_README.md"
+  "models/beat-this/MODEL_CARD.md"
+  "models/beat-this/build-spec.json"
+  "models/crema/MODEL_CARD.md"
+  "models/crema/build-spec.json"
   "pyproject.toml"
   "README.md"
   "SECURITY.md"
@@ -45,10 +46,12 @@ readonly REQUIRED_FILES=(
   "src/tuneforge_models/beat_this_spec.py"
   "src/tuneforge_models/cli.py"
   "src/tuneforge_models/integrity.py"
+  "src/tuneforge_models/hub_layout.py"
   "src/tuneforge_models/release.py"
   "src/tuneforge_models/runtime_state.py"
   "src/tuneforge_models/spec.py"
   "src/tuneforge_models/validate.py"
+  "tests/test_hub_layout.py"
 )
 
 compute_sha256() {
