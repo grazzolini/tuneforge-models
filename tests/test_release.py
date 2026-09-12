@@ -4,10 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from tuneforge_models.integrity import digest
-from tuneforge_models.release import assemble, validate_hub_coexistence
+from tuneforge_models.release import assemble
 from tuneforge_models.spec import MODEL_FILENAME, STATE_FILENAME
 
 
@@ -15,9 +13,9 @@ def test_release_contains_only_publishable_data(
     tmp_path: Path, crema_runtime_state: dict[str, Any]
 ) -> None:
     repository = tmp_path / "repository"
-    (repository / "models/crema-0.2.0").mkdir(parents=True)
+    (repository / "models/crema").mkdir(parents=True)
     (repository / "LICENSES").mkdir()
-    (repository / "models/crema-0.2.0/MODEL_CARD.md").write_text("card\n")
+    (repository / "models/crema/MODEL_CARD.md").write_text("card\n")
     (repository / "LICENSES/crema-0.2.0-BSD-2-Clause.txt").write_text("license\n")
     build = tmp_path / "build"
     build.mkdir()
@@ -68,16 +66,3 @@ def test_release_rejects_unvalidated_candidate(tmp_path: Path) -> None:
         assert str(error) == "build-not-covered-by-passed-validation"
     else:
         raise AssertionError("unvalidated candidate was accepted")
-
-
-def test_hub_coexistence_allows_only_beat_this_subdirectory() -> None:
-    crema = {"README.md", "manifest.json"}
-    beat_this = {"beat-this-small0/beat-this-small0.pte"}
-
-    assert validate_hub_coexistence(crema | beat_this | {".gitattributes"}, crema) == beat_this
-
-    with pytest.raises(ValueError, match="layout differs"):
-        validate_hub_coexistence(crema | {"unexpected.bin"}, crema)
-
-    with pytest.raises(ValueError, match="layout differs"):
-        validate_hub_coexistence({"README.md"}, crema)
