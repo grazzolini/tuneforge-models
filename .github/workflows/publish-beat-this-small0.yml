@@ -27,7 +27,6 @@ jobs:
       id-token: write
     env:
       HF_OIDC_RESOURCE: grazzolini/tuneforge-models
-      CHECKPOINT_SHA256: 6074be2c4d490c5f6101fcc374a1ec72ae93456e23bb6019783b849f5dc7d47b
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,12 +47,8 @@ jobs:
 
       - name: Download verified checkpoint
         run: |
-          mkdir -p "$RUNNER_TEMP/source"
-          curl --fail --location --silent --show-error --retry 3 \
-            --output "$RUNNER_TEMP/source/beat_this-small0.ckpt" \
-            "https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/small0.ckpt"
-          echo "$CHECKPOINT_SHA256  $RUNNER_TEMP/source/beat_this-small0.ckpt" \
-            | sha256sum -c -
+          uv run --no-group dev --group beat-this python -m tuneforge_models.checkpoint_download \
+            "$RUNNER_TEMP/source/beat_this-small0.ckpt"
 
       - name: Build, validate, and stage one family
         run: |

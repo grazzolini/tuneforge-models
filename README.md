@@ -16,6 +16,12 @@ with a dynamic `[1,N,128]` input contract for `N=13..1500`. Its generated PTE is
 available from the model Hub and stays out of Git. Publication requires maintainer approval,
 two-build host validation, anonymous download verification, and provenance attestation.
 
+Validation and publication download `small0` from JKU first, then try the
+[upstream maintainer mirror](https://github.com/CPJKU/beat_this/issues/20)
+only after a transport or HTTP failure. Each source has bounded timeouts and retries.
+Both must match the pinned SHA-256 and byte size before becoming build input;
+an integrity mismatch stops immediately without trying another source.
+
 This Git repository contains source, provenance records, validation, and
 publication tooling rather than model binaries. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for both model records.
