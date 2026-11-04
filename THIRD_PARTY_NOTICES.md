@@ -97,3 +97,22 @@ identity. TuneForge application packaging supplies that runtime separately and m
 preserve notices for the AAR and its resolved dependencies, including fbjni,
 NativeLoader, AndroidX Core, and Kotlin standard library. This record does not replace
 that app packaging review.
+
+## TuneForge music core 0.1.0 (build tooling)
+
+The base dependency consumes only `packages/music-core` from public TuneForge
+revision `3e91636a038ec69d0ce084b4220c92a965b887b0`, registered at
+`third_party/tuneforge`. Its exact package and notation contract identity is
+recorded in `models/crema/build-spec.json`.
+
+Preserve the pinned notices supplied with that core:
+
+- [TuneForge core MIT](third_party/tuneforge/packages/music-core/LICENSE)
+- [Gingo MIT](third_party/tuneforge/packages/music-core/licenses/Gingo-LICENSE)
+- [Unicode License v3](third_party/tuneforge/packages/music-core/licenses/Unicode-LICENSE)
+- [pybind11 BSD 3-Clause](third_party/tuneforge/packages/music-core/licenses/pybind11-LICENSE)
+
+The core's `sources.lock.json` pins Gingo and Unicode source inventories and hashes.
+The core is used by build and validation tooling; no core binary is included in
+Crema or Beat This artifact directories, so their artifact `LICENSES` inventories
+remain scoped to the redistributed model materials.

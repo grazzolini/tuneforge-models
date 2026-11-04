@@ -10,6 +10,7 @@ requires-python = "==3.11.*"
 dependencies = [
   "numpy>=1.26.4,<3",
   "onnx==1.17.0",
+  "tuneforge-music-core==0.1.0",
 ]
 
 [dependency-groups]
@@ -58,6 +59,9 @@ conflicts = [
   ],
 ]
 
+[tool.uv.sources]
+tuneforge-music-core = { path = "third_party/tuneforge/packages/music-core" }
+
 [project.scripts]
 tuneforge-models = "tuneforge_models.cli:main"
 
@@ -71,6 +75,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["third_party/tuneforge"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

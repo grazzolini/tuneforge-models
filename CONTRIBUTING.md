@@ -24,6 +24,35 @@ Allowed commit types are `feat`, `fix`, `perf`, `refactor`, `docs`, `test`,
 `build`, `ci`, `chore`, and `revert`. Commit and pull-request title lines must
 not exceed 100 characters.
 
+## Local validation
+
+After [source-checkout setup](README.md#local-setup-and-notation-core), run:
+
+```sh
+uv run --frozen ruff check .
+uv run --frozen mypy
+uv run --frozen pytest
+bash scripts/check-repository.sh
+```
+
+Keep `--reinstall-package tuneforge-music-core` on dev syncs and isolated conversion runs:
+the native source can change while its package version stays unchanged.
+
+```sh
+uv run --frozen --isolated --reinstall-package tuneforge-music-core \
+  --no-group dev --group convert tuneforge-models build \
+  --wheel /path/to/crema-0.2.0-py3-none-any.whl --output /path/to/new-build
+```
+
+After an intentional core pin change, rerun preparation before syncing. Preparation verifies the
+clean registered pin and never updates Git; `--prepare --offline` requires verified cached or
+vendored sources.
+
+Only the submodule's `packages/music-core` is consumed. [The build spec](models/crema/build-spec.json)
+pins its source, contract and vocabulary identity, recorded in build, validation and conversion
+metadata. Runtime-state JSON and model tensors keep their format. Crema/pumpp/mir_eval remains the
+independent conversion oracle; core binaries stay out of model releases.
+
 ## Licensing boundary
 
 The repository's MIT License applies only to repository-authored materials

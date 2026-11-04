@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 
 from .integrity import digest, extract_verified_crema_members
+from .music_core import notation_identity
 from .runtime_state import export_runtime_state, load_runtime_state, trusted_reference_timeline
 from .spec import CREMA_MEMBERS, MODEL_FILENAME, OPSET, OUTPUTS, STATE_FILENAME
 
@@ -25,6 +26,7 @@ def build(wheel: Path, output: Path) -> dict[str, Any]:
     """Build one candidate and its private validation references."""
     if output.exists():
         raise ValueError("output-already-exists")
+    identity = notation_identity()
     output.mkdir(parents=True)
     with tempfile.TemporaryDirectory(prefix="tuneforge-crema-source-") as temporary:
         members = extract_verified_crema_members(wheel, Path(temporary) / "source")
@@ -52,6 +54,7 @@ def build(wheel: Path, output: Path) -> dict[str, Any]:
     (output / "reference-timeline.json").write_text(
         json.dumps(timeline, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    metadata["notation_core"] = identity
     metadata["artifacts"] = {
         name: digest(output / name).__dict__ for name in (MODEL_FILENAME, STATE_FILENAME)
     }

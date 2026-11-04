@@ -10,6 +10,7 @@ from typing import Any
 
 from .build import copy_release_inputs
 from .integrity import digest
+from .music_core import notation_identity
 from .spec import (
     CREMA_MEMBERS,
     CREMA_TAG_COMMIT,
@@ -35,6 +36,19 @@ def assemble(
         candidate.get("artifacts") == artifacts for candidate in validation.get("candidates", [])
     ):
         raise ValueError("build-not-covered-by-passed-validation")
+    build_metadata = json.loads(
+        (build_directory / "build-metadata.json").read_text(encoding="utf-8")
+    )
+    identity = notation_identity()
+    if (
+        build_metadata.get("notation_core") != identity
+        or validation.get("notation_core") != identity
+        or not any(
+            candidate.get("artifacts") == artifacts and candidate.get("notation_core") == identity
+            for candidate in validation.get("candidates", [])
+        )
+    ):
+        raise ValueError("notation-core-release-mismatch")
     copy_release_inputs(build_directory, release_directory)
     shutil.copyfile(
         repository / "models/crema/MODEL_CARD.md",
@@ -45,9 +59,6 @@ def assemble(
     shutil.copyfile(
         repository / "LICENSES/crema-0.2.0-BSD-2-Clause.txt",
         license_directory / "crema-0.2.0-BSD-2-Clause.txt",
-    )
-    build_metadata = json.loads(
-        (build_directory / "build-metadata.json").read_text(encoding="utf-8")
     )
     files = {}
     for path in sorted(release_directory.rglob("*")):
@@ -68,6 +79,7 @@ def assemble(
             "training_manifest": "not-provided-upstream",
         },
         "conversion": {
+            "notation_core": identity,
             "tensorflow_version": build_metadata["tensorflow_version"],
             "tf2onnx_version": build_metadata["tf2onnx_version"],
             "onnx_version": build_metadata["onnx_version"],

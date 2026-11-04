@@ -14,11 +14,26 @@
   "gates": {
     "argmax_exact": true,
     "confidence_maximum_absolute_difference": 0.1,
+    "deterministic_scorer_input_exact": true,
     "four_output_heads": true,
     "run_to_run_timeline_drift": 0,
-    "deterministic_scorer_input_exact": true,
     "semantic_timeline_exact": true,
     "tensor_maximum_absolute_difference_reported": true
+  },
+  "notation_core": {
+    "abi_version": 1,
+    "api_version": 1,
+    "corpus_version": 1,
+    "fixture": {
+      "classes_sha256": "e319b684db4725df87ab52c8c7b6df46508af23077c4b0a7dc662a6cbe6228c1",
+      "path": "test/fixtures/crema-labels-v1.json",
+      "sha256": "6d24f77fd80a3d318bdf9d79a9c09d2d9a033580fbc188199fde744fc364c663"
+    },
+    "package": "tuneforge-music-core",
+    "package_version": "0.1.0",
+    "repository": "https://github.com/grazzolini/tuneforge.git",
+    "revision": "3e91636a038ec69d0ce084b4220c92a965b887b0",
+    "schema_version": 1
   },
   "schema_version": 1,
   "source": {
