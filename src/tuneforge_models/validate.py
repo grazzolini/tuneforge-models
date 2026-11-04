@@ -14,6 +14,7 @@ os.environ["ORT_DISABLE_TELEMETRY"] = "1"
 import onnxruntime as ort  # type: ignore[import-untyped]
 
 from .integrity import digest
+from .music_core import notation_identity
 from .runtime_state import decode_timeline, load_runtime_state
 from .spec import (
     MAX_CONFIDENCE_DIFFERENCE,
@@ -25,7 +26,10 @@ from .spec import (
 
 def validate_builds(first: Path, second: Path, report_path: Path) -> dict[str, Any]:
     """Require two independent candidates to satisfy all parity gates."""
+    identity = notation_identity()
     reports = [_validate_candidate(path) for path in (first, second)]
+    if any(report["notation_core"] != identity for report in reports):
+        raise ValueError("notation-core-validation-mismatch")
     first_output = _run(first)
     second_output = _run(second)
     cross_max = max(
@@ -43,6 +47,7 @@ def validate_builds(first: Path, second: Path, report_path: Path) -> dict[str, A
     result = {
         "status": "passed",
         "candidate_count": 2,
+        "notation_core": identity,
         "candidate_onnx_sha256": [digest(path / MODEL_FILENAME).sha256 for path in (first, second)],
         "onnx_bytes_identical": (
             (first / MODEL_FILENAME).read_bytes() == (second / MODEL_FILENAME).read_bytes()
@@ -88,6 +93,8 @@ def _validate_candidate(candidate: Path) -> dict[str, Any]:
     actual_timeline = decode_timeline(actual_first[0][0], actual_first[3][0], state)
     confidence_delta = compare_timelines(expected_timeline, actual_timeline)
     metadata = json.loads((candidate / "build-metadata.json").read_text(encoding="utf-8"))
+    if metadata.get("notation_core") != notation_identity():
+        raise ValueError("notation-core-build-mismatch")
     crafted_timeline = decode_timeline(reference["crafted_tag"], reference["crafted_bass"], state)
     compare_timelines(metadata["crafted_decoder_timeline"], crafted_timeline)
     return {
@@ -95,6 +102,7 @@ def _validate_candidate(candidate: Path) -> dict[str, Any]:
             "model": digest(candidate / MODEL_FILENAME).__dict__,
             "state": digest(candidate / STATE_FILENAME).__dict__,
         },
+        "notation_core": metadata["notation_core"],
         "maximum_tensor_difference": max(maximum_differences),
         "argmax_exact": all(row["argmax_exact"] for row in output_reports),
         "output_heads": output_reports,

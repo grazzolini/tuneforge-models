@@ -30,6 +30,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -42,8 +44,11 @@ jobs:
           version: "0.12.5"
           enable-cache: true
 
+      - name: Prepare pinned music core sources
+        run: uv run --no-project --python 3.11 python src/tuneforge_models/music_core.py --prepare
+
       - name: Install locked dependencies
-        run: uv sync --frozen --no-group dev --group beat-this --group publish
+        run: uv sync --frozen --reinstall-package tuneforge-music-core --no-group dev --group beat-this --group publish
 
       - name: Download verified checkpoint
         run: |

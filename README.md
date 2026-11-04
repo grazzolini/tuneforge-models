@@ -26,6 +26,19 @@ This Git repository contains source, provenance records, validation, and
 publication tooling rather than model binaries. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for both model records.
 
+## Local setup and notation core
+
+Use a source checkout, Python 3.11 and uv; standalone models-package installation is unsupported.
+Initialize the pinned submodule and prepare its sources before syncing dependencies:
+
+```sh
+git submodule update --init third_party/tuneforge
+uv run --no-project --python 3.11 python src/tuneforge_models/music_core.py --prepare
+uv sync --frozen --group dev --reinstall-package tuneforge-music-core
+```
+
+See [local validation](CONTRIBUTING.md#local-validation) for checks and conversion setup.
+
 ## Publication
 
 Maintainers publish each family from `main` by manually dispatching its workflow.

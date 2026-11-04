@@ -13,26 +13,10 @@ import numpy as np
 import numpy.typing as npt
 
 from .integrity import verify_file
+from .music_core import crema_contains, degree_name, parse_crema
 from .spec import CREMA_MEMBERS, FileDigest
 
-_QUALITY_INTERVALS = {
-    "7": {0, 4, 7, 10},
-    "aug": {0, 4, 8},
-    "dim": {0, 3, 6},
-    "dim7": {0, 3, 6, 9},
-    "hdim7": {0, 3, 6, 10},
-    "maj": {0, 4, 7},
-    "maj6": {0, 4, 7, 9},
-    "maj7": {0, 4, 7, 11},
-    "min": {0, 3, 7},
-    "min6": {0, 3, 7, 9},
-    "min7": {0, 3, 7, 10},
-    "minmaj7": {0, 3, 7, 11},
-    "sus2": {0, 2, 7},
-    "sus4": {0, 5, 7},
-}
-_PITCHES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
-_DEGREES = ("1", "b2", "2", "b3", "3", "4", "b5", "5", "b6", "6", "b7", "7")
+_ORACLE_DEGREES = ("1", "b2", "2", "b3", "3", "4", "b5", "5", "b6", "6", "b7", "7")
 _CLASSES_SHA256 = "e319b684db4725df87ab52c8c7b6df46508af23077c4b0a7dc662a6cbe6228c1"
 
 
@@ -131,7 +115,7 @@ def trusted_reference_timeline(
             root_index, pitches, _ = mir_eval.chord.encode(label)
             relative = (bass_index - root_index) % 12 if bass_index < 12 else 0
             if relative and pitches[relative]:
-                label = f"{label}/{_DEGREES[relative]}"
+                label = f"{label}/{_ORACLE_DEGREES[relative]}"
         timeline.append(
             {
                 "start_seconds": float(observation.time),
@@ -198,7 +182,7 @@ def decode_timeline(
     bass: npt.NDArray[np.float32],
     state: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Decode tag/bass heads using only NumPy and exported state."""
+    """Decode tag/bass heads with exported state and the canonical notation core."""
     labels = state["decoder"]["labels"]
     hop = int(state["decoder"]["hop_length"])
     sample_rate = int(state["decoder"]["sample_rate"])
@@ -214,14 +198,16 @@ def decode_timeline(
         label = labels[label_index]
         confidence = float(np.mean(tag[start : end + 1, label_index]))
         if label not in {"N", "X"}:
-            root, quality = label.split(":", 1)
-            root_index = _PITCHES.index(root)
+            parsed = parse_crema(label)
+            root_index = parsed["root_pitch_class"]
+            if parsed["kind"] != "chord" or root_index is None:
+                raise ValueError("music-core-decoder-label-mismatch")
             stabilized = np.maximum(bass[start : end + 1], np.finfo(np.float32).tiny)
             mean_log = np.mean(np.log(stabilized), axis=0)
             bass_index = int(np.argmax(np.exp(mean_log)))
             relative = (bass_index - root_index) % 12 if bass_index < 12 else 0
-            if relative and relative in _QUALITY_INTERVALS[quality]:
-                label = f"{label}/{_DEGREES[relative]}"
+            if relative and crema_contains(label, relative):
+                label = f"{label}/{degree_name(relative)}"
         timeline.append(
             {
                 "start_seconds": float(start * hop / sample_rate),

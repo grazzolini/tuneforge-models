@@ -15,6 +15,7 @@ readonly REQUIRED_FILES=(
   ".github/dependabot.yml"
   ".github/workflows/ci.yml"
   ".github/workflows/publish-beat-this-small0.yml"
+  ".gitmodules"
   ".gitignore"
   ".husky/commit-msg"
   "AGENTS.md"
@@ -108,5 +109,24 @@ if git ls-files -z | grep -zE '\.(ckpt|h5|onnx|pkl|npz|pte)$' >/dev/null; then
   echo "Generated model, weight, pickle, or reference artifact is tracked." >&2
   exit 1
 fi
+
+python3 - <<'PYTHON'
+import json
+import subprocess
+from pathlib import Path
+
+spec = json.loads(Path("models/crema/build-spec.json").read_text())["notation_core"]
+def git(*arguments):
+    return subprocess.check_output(["git", *arguments], text=True).strip()
+
+assert git("config", "-f", ".gitmodules", "--get", "submodule.third_party/tuneforge.path") == "third_party/tuneforge"
+assert git("config", "-f", ".gitmodules", "--get", "submodule.third_party/tuneforge.url") == spec["repository"]
+assert git("ls-files", "--stage", "--", "third_party/tuneforge").split() == [
+    "160000", spec["revision"], "0", "third_party/tuneforge",
+]
+if Path("third_party/tuneforge/.git").is_file():
+    import runpy
+    runpy.run_path("src/tuneforge_models/music_core.py")["notation_identity"]()
+PYTHON
 
 echo "Repository policy checks passed."

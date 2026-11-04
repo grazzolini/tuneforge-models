@@ -74,3 +74,57 @@ def test_timeline_semantics_and_confidence_remain_blocking() -> None:
         compare_timelines(expected, semantic_drift)
     with pytest.raises(ValueError, match="confidence-parity-failed"):
         compare_timelines(expected, confidence_drift)
+
+
+@pytest.mark.parametrize("mismatched_candidate", ("first", "second"))
+def test_validation_rejects_candidate_core_identity_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mismatched_candidate: str
+) -> None:
+    from tuneforge_models import validate
+    from tuneforge_models.music_core import notation_identity
+
+    identity = notation_identity()
+
+    def candidate(path: Path) -> dict[str, Any]:
+        candidate_identity = dict(identity)
+        if path.name == mismatched_candidate:
+            candidate_identity["revision"] = "0" * 40
+        return {"notation_core": candidate_identity}
+
+    monkeypatch.setattr(validate, "_validate_candidate", candidate)
+    report = tmp_path / "validation.json"
+    with pytest.raises(ValueError, match="notation-core-validation-mismatch"):
+        validate.validate_builds(tmp_path / "first", tmp_path / "second", report)
+    assert not report.exists()
+
+
+@pytest.mark.parametrize("recorded_identity", (None, {"revision": "0" * 40}))
+def test_candidate_rejects_build_metadata_core_identity_mismatch(
+    tmp_path: Path, crema_runtime_state: dict[str, Any], monkeypatch: pytest.MonkeyPatch,
+    recorded_identity: dict[str, str] | None,
+) -> None:
+    import json
+    from types import SimpleNamespace
+
+    from tuneforge_models import validate
+    from tuneforge_models.runtime_state import decode_timeline
+    from tuneforge_models.spec import OUTPUTS, STATE_FILENAME
+
+    outputs = [np.full((1, 4, classes), 1 / classes, dtype=np.float32)
+               for _, classes in OUTPUTS]
+    outputs[0][:] = 0
+    outputs[0][:, :, crema_runtime_state["decoder"]["labels"].index("N")] = 1
+    np.savez(tmp_path / "reference.npz",
+             **{f"reference_{index}": value for index, value in enumerate(outputs)})
+    (tmp_path / STATE_FILENAME).write_text(json.dumps(crema_runtime_state))
+    (tmp_path / "reference-timeline.json").write_text(json.dumps(
+        decode_timeline(outputs[0][0], outputs[3][0], crema_runtime_state)))
+    (tmp_path / "build-metadata.json").write_text(json.dumps({"notation_core": recorded_identity}))
+    monkeypatch.setattr("tuneforge_models.validate.onnx.load", lambda path: SimpleNamespace(
+        graph=SimpleNamespace(output=[None] * 4)))
+    monkeypatch.setattr(
+        "tuneforge_models.validate.onnx.checker.check_model", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(validate, "_run", lambda candidate: outputs)
+    with pytest.raises(ValueError, match="notation-core-build-mismatch"):
+        validate._validate_candidate(tmp_path)
